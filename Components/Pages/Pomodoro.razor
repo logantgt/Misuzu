@@ -1,0 +1,224 @@
+@page "/pomodoro"
+@rendermode InteractiveServer
+
+<PageTitle>Pomodoro - Misuzu</PageTitle>
+
+<style>
+    :root {
+      --idle-bg: #dc2626;
+      --pomodoro-bg: #16a34a;
+      --break-bg: #2563eb;
+      --idle-bg-paused: #991b1b;
+      --pomodoro-bg-paused: #15803d;
+      --break-bg-paused: #1e40af;
+    }
+
+    .pomodoro-fullscreen {
+      position: fixed;
+      top: 64px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--idle-bg);
+      transition: background-color 0.5s ease;
+      z-index: 10;
+    }
+
+    .pomodoro-container {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+
+<div class="pomodoro-fullscreen" id="pomodoro-bg">
+    <div class="pomodoro-container">
+    <div class="text-center space-y-8">
+        <div class="timer text-white font-bold" style="font-size: 12rem; line-height: 1;" id="timer">00:00</div>
+
+        <div class="flex gap-8 justify-center items-end">
+            <label class="flex flex-col items-center gap-2">
+                <span class="text-white text-lg font-medium">Pomodoro (min)</span>
+                <input type="number" id="pomodoroDuration" value="25" min="1"
+                       class="w-20 px-4 py-3 bg-black bg-opacity-20 border-2 border-white border-opacity-30 text-white text-center text-xl font-semibold focus:outline-none focus:border-opacity-50">
+            </label>
+            <label class="flex flex-col items-center gap-2">
+                <span class="text-white text-lg font-medium">Break (min)</span>
+                <input type="number" id="breakDuration" value="5" min="1"
+                       class="w-20 px-4 py-3 bg-black bg-opacity-20 border-2 border-white border-opacity-30 text-white text-center text-xl font-semibold focus:outline-none focus:border-opacity-50">
+            </label>
+        </div>
+
+        <div class="mt-8">
+            <button id="startStopBtn" 
+                    class="px-12 py-4 bg-black bg-opacity-20 hover:bg-opacity-30 text-white text-2xl font-bold border-2 border-white border-opacity-30 transition-all shadow-2xl">
+                START
+            </button>
+        </div>
+    </div>
+    </div>
+</div>
+
+<!-- Loud alarm audio -->
+<audio id="alarm" src="alarm_clock.ogg"></audio>
+
+<script>
+    // Use a longer delay to ensure Blazor has rendered everything
+    setTimeout(function() {
+        initPomodoro();
+    }, 250);
+
+    function initPomodoro() {
+        const timerDisplay = document.getElementById('timer');
+        const startStopBtn = document.getElementById('startStopBtn');
+        const pomodoroInput = document.getElementById('pomodoroDuration');
+        const breakInput = document.getElementById('breakDuration');
+        const alarm = document.getElementById('alarm');
+        const bgElement = document.getElementById('pomodoro-bg');
+
+        if (!timerDisplay || !startStopBtn || !pomodoroInput || !breakInput || !alarm || !bgElement) {
+            console.error('Pomodoro elements not found, retrying...');
+            setTimeout(initPomodoro, 100);
+            return;
+        }
+
+            let timer = null;
+            let remainingSeconds = 0;
+            let currentState = 'pomodoro_idle';
+
+            function updateBackground() {
+              switch(currentState) {
+                case 'pomodoro_idle':
+                  bgElement.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--idle-bg');
+                  break;
+                case 'pomodoro':
+                  bgElement.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--pomodoro-bg');
+                  break;
+                case 'pomodoro_paused':
+                  bgElement.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--pomodoro-bg-paused');
+                  break;
+                case 'break_idle':
+                  bgElement.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--break-bg-paused');
+                  break;
+                case 'break':
+                  bgElement.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--break-bg');
+                  break;
+                case 'break_paused':
+                  bgElement.style.backgroundColor = getComputedStyle(document.documentElement).getPropertyValue('--break-bg-paused');
+                  break;
+              }
+            }
+
+            function formatTime(seconds) {
+              const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+              const s = String(seconds % 60).padStart(2, '0');
+              return `${m}:${s}`;
+            }
+
+            function updateDisplay() {
+              if(currentState === 'pomodoro_idle')
+              {
+                timerDisplay.textContent = formatTime(parseInt(pomodoroInput.value) * 60);
+                document.title = formatTime(parseInt(pomodoroInput.value) * 60);
+                return;
+              } else if(currentState === 'break_idle')
+              {
+                timerDisplay.textContent = formatTime(parseInt(breakInput.value) * 60);
+                document.title = formatTime(parseInt(breakInput.value) * 60);
+                return;
+              }
+
+                timerDisplay.textContent = formatTime(remainingSeconds);
+                document.title = formatTime(remainingSeconds);
+            }
+
+            function startTimer(duration, nextState) {
+              clearInterval(timer);
+              remainingSeconds = duration;
+              updateDisplay();
+              timer = setInterval(() => {
+                remainingSeconds--;
+                updateDisplay();
+
+                if (remainingSeconds <= 0) {
+                  clearInterval(timer);
+                  alarm.play();
+                  if (nextState === 'break_idle') {
+                    currentState = 'break_idle';
+                    startStopBtn.textContent = 'START';
+                    remainingSeconds =  parseInt(breakInput.value) * 60;
+                    updateDisplay();
+                    updateBackground();
+                  } else if (nextState === 'pomodoro_idle') {
+                    currentState = 'pomodoro_idle';
+                    startStopBtn.textContent = 'START';
+                    remainingSeconds =  parseInt(pomodoroInput.value) * 60;
+                    updateDisplay();
+                    updateBackground();
+                  }
+                }
+              }, 1000);
+            }
+
+            startStopBtn.addEventListener('click', () => {
+              if (currentState === 'pomodoro_idle') {
+                currentState = 'pomodoro';
+                updateBackground();
+                const duration = parseInt(pomodoroInput.value) * 60;
+                startTimer(duration, 'break_idle');
+                startStopBtn.textContent = 'STOP';
+              }
+              else if (currentState === 'pomodoro') {
+                clearInterval(timer);
+                currentState = 'pomodoro_paused';
+                updateBackground();
+                startStopBtn.textContent = 'START';
+                updateDisplay();
+              }
+              else if (currentState === 'pomodoro_paused') {
+                currentState = 'pomodoro';
+                updateBackground();
+                const duration = remainingSeconds;
+                startTimer(duration, 'break_idle');
+                startStopBtn.textContent = 'STOP';
+              }
+              else if (currentState === 'break_idle') {
+                currentState = 'break';
+                updateBackground();
+                const duration = parseInt(breakInput.value) * 60;
+                startTimer(duration, 'pomodoro_idle');
+                startStopBtn.textContent = 'STOP';
+              }
+              else if (currentState === 'break') {
+                clearInterval(timer);
+                currentState = 'break_paused';
+                updateBackground();
+                startStopBtn.textContent = 'START';
+                updateDisplay();
+              }
+              else if (currentState === 'break_paused') {
+                currentState = 'break';
+                updateBackground();
+                const duration = remainingSeconds;
+                startTimer(duration, 'pomodoro_idle');
+                startStopBtn.textContent = 'STOP';
+              }
+            });
+
+            pomodoroInput.addEventListener('input', () => {
+              updateDisplay();
+            });
+
+            breakInput.addEventListener('input', () => {
+              updateDisplay();
+            });
+
+        // Initialize UI
+        updateDisplay();
+        updateBackground();
+    }
+</script>

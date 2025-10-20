@@ -1,0 +1,49 @@
+@using Misuzu.Database.Models
+
+@if (DisableLink)
+{
+    <div class="group" @onclick="OnClick" @onclick:stopPropagation="true">
+        <div class="bg-zinc-900 border border-zinc-800 overflow-hidden shadow-lg hover:shadow-2xl transition-all @(IsSelected ? "border-purple-500 shadow-purple-500/50" : "hover:border-purple-500")">
+            <div class="aspect-[2/3] overflow-hidden">
+                <img src="/images/@Entry.CoverImage" 
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                     alt="@Entry.Title cover" />
+            </div>
+            <div class="p-3">
+                <h3 class="font-semibold text-white truncate transition-colors @(IsSelected ? "text-purple-400" : "group-hover:text-purple-400")">@Entry.Title</h3>
+                <p class="text-sm text-zinc-500 mt-1">@Entry.Type</p>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <a href="/library/@Entry.Id" class="group">
+        <div class="bg-zinc-900 border border-zinc-800 overflow-hidden shadow-lg hover:shadow-2xl hover:border-purple-500 transition-all">
+            <div class="aspect-[2/3] overflow-hidden">
+                <img src="/images/@Entry.CoverImage" 
+                     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                     alt="@Entry.Title cover" />
+            </div>
+            <div class="p-3">
+                <h3 class="font-semibold text-white truncate group-hover:text-purple-400 transition-colors">@Entry.Title</h3>
+                <p class="text-sm text-zinc-500 mt-1">@Entry.Type</p>
+            </div>
+        </div>
+    </a>
+}
+
+@code {
+    [Parameter] public LibraryEntry Entry { get; set; } = new();
+    [Parameter] public bool DisableLink { get; set; } = false;
+    [Parameter] public bool IsSelected { get; set; } = false;
+    [Parameter] public EventCallback<LibraryEntry> OnCardClick { get; set; }
+
+    private async Task OnClick()
+    {
+        if (OnCardClick.HasDelegate)
+        {
+            await OnCardClick.InvokeAsync(Entry);
+        }
+    }
+}

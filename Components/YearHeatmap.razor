@@ -1,0 +1,203 @@
+@using Misuzu.Database.Models
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<div class="overflow-x-auto p-6 relative">
+    <div class="flex items-start gap-2 justify-center">
+        <div class="flex flex-col gap-1 text-xs text-zinc-500 pt-4">
+            <div class="h-3">Sun</div>
+            <div class="h-3">Mon</div>
+            <div class="h-3">Tue</div>
+            <div class="h-3">Wed</div>
+            <div class="h-3">Thu</div>
+            <div class="h-3">Fri</div>
+            <div class="h-3">Sat</div>
+        </div>
+        
+        <div>
+            <div class="flex gap-1 mb-1 text-xs text-zinc-500 relative" style="height: 12px;">
+                @foreach (var monthLabel in monthLabels)
+                {
+                    <div style="position: absolute; left: @((monthLabel.Column * 16))px;">@monthLabel.Month</div>
+                }
+            </div>
+            
+            <div class="flex gap-1" id="@heatmapId">
+                @foreach (var week in heatmapData.GroupBy(d => d.Column).OrderBy(g => g.Key))
+                {
+                    <div class="flex flex-col gap-1">
+                        @foreach (var day in week.OrderBy(d => d.Row))
+                        {
+                            if (string.IsNullOrEmpty(day.Date))
+                            {
+                                <div class="w-3 h-3" style="border-radius: 2px;"></div>
+                            }
+                            else
+                            {
+                                var colorClass = GetColorForMinutes(day.Minutes);
+                                var opacity = day.IsInRange ? "opacity-100" : "opacity-25";
+                                <div class="w-3 h-3 @colorClass @opacity cursor-pointer heatmap-cell" 
+                                     data-date="@day.Date"
+                                     data-minutes="@day.Minutes"
+                                     style="border-radius: 2px;">
+                                </div>
+                            }
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+    <div id="@tooltipId" class="fixed hidden bg-zinc-800 border border-zinc-700 px-3 py-2 text-white text-sm pointer-events-none shadow-xl" style="border-radius: 4px; z-index: 9999;">
+        <div class="font-semibold" id="@(tooltipId)-date"></div>
+        <div class="text-zinc-400 mt-1" id="@(tooltipId)-minutes"></div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<ImmersionLog> Logs { get; set; } = new();
+    [Parameter] public DateTime FilterStartDate { get; set; }
+    [Parameter] public DateTime FilterEndDate { get; set; }
+
+    private List<HeatmapDataPoint> heatmapData = new();
+    private List<MonthLabel> monthLabels = new();
+    private string heatmapId = $"heatmap-container-{Guid.NewGuid():N}";
+    private string tooltipId = $"heatmap-tooltip-{Guid.NewGuid():N}";
+
+    public class HeatmapDataPoint
+    {
+        public int Row { get; set; }
+        public int Column { get; set; }
+        public long Minutes { get; set; }
+        public string Date { get; set; }
+        public int Order { get; set; }
+        public bool IsInRange { get; set; }
+        public DateTime? ActualDate { get; set; }
+    }
+
+    public class MonthLabel
+    {
+        public string Month { get; set; }
+        public int Column { get; set; }
+    }
+
+    protected override void OnParametersSet()
+    {
+        PrepareHeatmapData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("eval", $@"
+                (function() {{
+                    const container = document.getElementById('{heatmapId}');
+                    const tooltip = document.getElementById('{tooltipId}');
+                    const tooltipDate = document.getElementById('{tooltipId}-date');
+                    const tooltipMinutes = document.getElementById('{tooltipId}-minutes');
+                    
+                    if (!container || !tooltip) return;
+                    
+                    container.addEventListener('mouseover', function(e) {{
+                        if (e.target.classList.contains('heatmap-cell')) {{
+                            const date = e.target.getAttribute('data-date');
+                            const minutes = e.target.getAttribute('data-minutes');
+                            
+                            tooltipDate.textContent = date;
+                            tooltipMinutes.textContent = minutes + ' minutes';
+                            
+                            tooltip.classList.remove('hidden');
+                            
+                            const rect = e.target.getBoundingClientRect();
+                            
+                            tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+                            tooltip.style.top = (rect.top - tooltip.offsetHeight - 8) + 'px';
+                        }}
+                    }});
+                    
+                    container.addEventListener('mouseout', function(e) {{
+                        if (e.target.classList.contains('heatmap-cell')) {{
+                            tooltip.classList.add('hidden');
+                        }}
+                    }});
+                }})();
+            ");
+        }
+    }
+
+    private void PrepareHeatmapData()
+    {
+        var allYearLogs = Logs
+            .Where(_ => _.TimeStamp.LocalDateTime.Year == DateTime.Now.Year)
+            .ToList();
+
+        var dailyMinutes = allYearLogs
+            .GroupBy(log => log.TimeStamp.LocalDateTime.Date)
+            .ToDictionary(g => g.Key, g => (long)g.Sum(l => l.Duration.TotalMinutes));
+
+        var startOfYear = new DateTime(DateTime.Now.Year, 1, 1);
+        var firstDayOfWeek = (int)startOfYear.DayOfWeek;
+
+        heatmapData = new List<HeatmapDataPoint>();
+        int dataIndex = 0;
+
+        for (int i = 0; i < firstDayOfWeek; i++)
+        {
+            int row = i;
+            int col = 0;
+            heatmapData.Add(new HeatmapDataPoint
+            {
+                Row = row,
+                Column = col,
+                Minutes = 0,
+                Date = "",
+                Order = dataIndex++,
+                IsInRange = false
+            });
+        }
+
+        monthLabels = new List<MonthLabel>();
+        int? lastMonth = null;
+
+        for (int day = 0; day < 365; day++)
+        {
+            var currentDate = startOfYear.AddDays(day);
+            var totalDays = firstDayOfWeek + day;
+            int row = totalDays % 7;
+            int col = totalDays / 7;
+
+            dailyMinutes.TryGetValue(currentDate, out var minutes);
+
+            heatmapData.Add(new HeatmapDataPoint
+            {
+                Row = row,
+                Column = col,
+                Minutes = minutes,
+                Date = currentDate.ToString("MMMM d, yyyy"),
+                Order = dataIndex++,
+                IsInRange = currentDate >= FilterStartDate && currentDate <= FilterEndDate,
+                ActualDate = currentDate
+            });
+
+            if (lastMonth != currentDate.Month)
+            {
+                monthLabels.Add(new MonthLabel
+                {
+                    Month = currentDate.ToString("MMM"),
+                    Column = col
+                });
+                lastMonth = currentDate.Month;
+            }
+        }
+    }
+
+    private string GetColorForMinutes(long minutes)
+    {
+        if (minutes == 0) return "bg-zinc-800";
+        if (minutes <= 30) return "bg-purple-900";
+        if (minutes <= 60) return "bg-purple-700";
+        if (minutes <= 120) return "bg-purple-500";
+        return "bg-purple-300";
+    }
+}

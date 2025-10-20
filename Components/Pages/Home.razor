@@ -1,0 +1,730 @@
+@page "/"
+@rendermode InteractiveServer
+@using Misuzu.Database
+@using Misuzu.Database.Models
+@inject RealmDbContext RealmDbContext
+@inject IJSRuntime JS
+
+<PageTitle>Misuzu</PageTitle>
+
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div class="relative">
+            <button @onclick="ToggleDateRangeDropdown" class="flex items-center gap-2 px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-purple-500 transition-colors">
+                <span class="text-3xl font-bold text-white">@GetDateRangeLabel()</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+            </button>
+            
+            @if (isDateRangeDropdownOpen)
+            {
+                <div class="absolute left-0 mt-2 w-64 bg-zinc-900 border border-zinc-800 shadow-2xl z-50">
+                    <button @onclick="() => SelectDateRange(DateRangeType.CurrentMonth)" class="w-full px-4 py-3 text-left text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800">
+                        Current Month
+                    </button>
+                    <button @onclick="() => SelectDateRange(DateRangeType.LastMonth)" class="w-full px-4 py-3 text-left text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800">
+                        Last Month
+                    </button>
+                    <button @onclick="() => SelectDateRange(DateRangeType.CurrentYear)" class="w-full px-4 py-3 text-left text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800">
+                        Current Year
+                    </button>
+                    <button @onclick="() => SelectDateRange(DateRangeType.LastYear)" class="w-full px-4 py-3 text-left text-zinc-300 hover:bg-zinc-800 transition-colors border-b border-zinc-800">
+                        Last Year
+                    </button>
+                    <div class="p-4 space-y-3">
+                        <div class="text-sm text-zinc-400 mb-2">Custom Range</div>
+                        <div>
+                            <label class="text-xs text-zinc-500">Start Date</label>
+                            <input type="date" @bind="customStartDate" class="w-full mt-1 px-3 py-2 bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-purple-500" />
+                        </div>
+                        <div>
+                            <label class="text-xs text-zinc-500">End Date</label>
+                            <input type="date" @bind="customEndDate" class="w-full mt-1 px-3 py-2 bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-purple-500" />
+                        </div>
+                        <button @onclick="ApplyCustomDateRange" class="w-full px-4 py-2 bg-purple-900 hover:bg-purple-800 text-purple-200 border border-purple-700 transition-colors">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (logs == null)
+    {
+        <div class="bg-zinc-900 p-8 text-center border border-zinc-800 shadow-lg">
+            <p class="text-zinc-400">Loading...</p>
+        </div>
+    }
+    else if (!logs.Any())
+    {
+        <div class="bg-zinc-900 p-8 text-center border border-zinc-800 shadow-lg">
+            <p class="text-zinc-400">No immersion logs found for this date range.</p>
+        </div>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div class="bg-gradient-to-br from-purple-900 to-purple-800 p-6 border border-purple-700 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-purple-200 text-sm font-medium">Total Time</p>
+                        <p class="text-3xl font-bold text-white mt-2">@Math.Floor(totalDuration.TotalHours)h @totalDuration.Minutes<span class="text-xl">m</span></p>
+                    </div>
+                    <div class="bg-purple-700 p-3">
+                        <svg class="w-8 h-8 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-blue-900 to-blue-800 p-6 border border-blue-700 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-blue-200 text-sm font-medium">Total Logs</p>
+                        <p class="text-3xl font-bold text-white mt-2">@logs.Count</p>
+                    </div>
+                    <div class="bg-blue-700 p-3">
+                        <svg class="w-8 h-8 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-emerald-900 to-emerald-800 p-6 border border-emerald-700 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-emerald-200 text-sm font-medium">Avg Per Day</p>
+                        <p class="text-3xl font-bold text-white mt-2">@((totalDuration.TotalHours / (filterEndDate - filterStartDate).Days).ToString("F2"))<span class="text-xl">h</span></p>
+                    </div>
+                    <div class="bg-emerald-700 p-3">
+                        <svg class="w-8 h-8 text-emerald-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-br from-orange-900 to-orange-800 p-6 border border-orange-700 shadow-lg">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-orange-200 text-sm font-medium">Streak</p>
+                        <p class="text-3xl font-bold text-white mt-2">@currentStreak <span class="text-xl">days</span></p>
+                    </div>
+                    <div class="bg-orange-700 p-3">
+                        <svg class="w-8 h-8 text-orange-200" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2C12 2 7 6.5 7 11C7 14.866 9.134 18 12 18C14.866 18 17 14.866 17 11C17 6.5 12 2 12 2ZM12 16C10.343 16 9 14.657 9 13C9 10.5 12 8 12 8C12 8 15 10.5 15 13C15 14.657 13.657 16 12 16Z" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-zinc-900 border border-zinc-800 shadow-lg mb-6">
+            <YearHeatmap Logs="@GetAllLogsForYear()" FilterStartDate="@filterStartDate" FilterEndDate="@filterEndDate" />
+        </div>
+
+        <div class="flex bg-zinc-900 border border-zinc-800 shadow-lg mb-6">
+            @foreach (ImmersionType type in Enum.GetValues(typeof(ImmersionType)))
+            {
+                long sum = logs.Where(_ => _.Type == type).ToList().Sum(e => (long)e.Amount);
+                if (sum == 0) continue;
+
+                <div class="flex-1 p-5 border-r border-zinc-800 last:border-r-0">
+                    <h3 class="text-sm font-medium text-zinc-400 mb-2">@type.ToString()</h3>
+                    <p class="text-2xl font-bold text-purple-400">@sum.ToString("N0")</p>
+                </div>
+            }
+        </div>
+
+        @if (completedEntries.Any())
+        {
+            <div class="bg-zinc-900 border border-zinc-800 shadow-lg mb-6">
+                <div class="p-6 border-b border-zinc-800">
+                    <h2 class="text-xl font-bold text-white">Completed in @GetDateRangeLabel()</h2>
+                </div>
+                <div class="p-6">
+                    <LibraryCarousel Entries="completedEntries" Interactive="false" />
+                </div>
+            </div>
+        }
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+            <div class="bg-zinc-900 p-6 border border-zinc-800 shadow-lg" id="breakdown-container">
+                <h2 class="text-xl font-bold text-white mb-4">Immersion Breakdown</h2>
+                
+                
+                <ApexChart TItem="ImmersionLog" @key=chartKey
+                           XAxisType=XAxisType.Datetime
+                           Options=options>
+
+                    @foreach (ImmersionType type in Enum.GetValues(typeof(ImmersionType)))
+                    {
+                        long sum = logs.Where(_ => _.Type == type).ToList().Sum(e => (long)e.Duration.TotalMinutes);
+                        if (sum == 0) continue;
+
+                        <ApexPointSeries TItem="ImmersionLog"
+                                         Items="logs"
+                                         Name="@type.ToString()"
+                                         SeriesType="SeriesType.Bar"
+                                         XValue="@(e => e.TimeStamp.LocalDateTime.Date)"
+                                         YAggregate="@(e => e.Where(x => x.Type == type).Sum(x => (long)x.Duration.TotalMinutes))">
+                        </ApexPointSeries>
+                    }
+
+                </ApexChart>
+
+                <div class="mt-6 flex items-center gap-6">
+                    <div class="flex-shrink-0" style="width: 250px;">
+                        <ApexChart TItem="TypeData" @key=chartKey
+                                   Options=pieOptions>
+                            <ApexPointSeries TItem="TypeData"
+                                             Items="typeDistribution"
+                                             SeriesType="SeriesType.Donut"
+                                             Name="Minutes"
+                                             XValue="@(e => e.TypeName)"
+                                             YValue="@(e => (decimal)e.Minutes)" />
+                        </ApexChart>
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        @foreach (var type in typeDistribution.OrderByDescending(t => t.Minutes))
+                        {
+                            var percentage = totalDuration.TotalMinutes > 0 ? (type.Minutes / totalDuration.TotalMinutes * 100) : 0;
+                            <div class="flex items-center justify-between py-2 border-b border-zinc-800">
+                                <span class="text-zinc-300">@type.TypeName</span>
+                                <span class="text-purple-400 font-semibold">@percentage.ToString("F1")%</span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        
+            <div class="bg-zinc-900 border border-zinc-800 shadow-lg flex flex-col" style="height: 100%;">
+                <div class="p-6 border-b border-zinc-800 flex items-center justify-between flex-shrink-0">
+                    <h2 class="text-xl font-bold text-white">Recent Logs</h2>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-zinc-400">Per page:</label>
+                        <select class="bg-zinc-800 text-white px-3 py-1.5 border border-zinc-700 focus:outline-none focus:border-purple-500" @bind="pageSize">
+                            <option value="5">5</option>
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-y-auto flex-1 min-h-0">
+                    <table class="w-full">
+                        <thead class="bg-zinc-800 sticky top-0">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider cursor-pointer hover:text-purple-400" @onclick="() => SortBy(nameof(ImmersionLog.Content))">
+                                Library Entry
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider cursor-pointer hover:text-purple-400" @onclick="() => SortBy(nameof(ImmersionLog.Amount))">
+                                Amount
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider cursor-pointer hover:text-purple-400" @onclick="() => SortBy(nameof(ImmersionLog.Duration))">
+                                Duration
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider cursor-pointer hover:text-purple-400" @onclick="() => SortBy(nameof(ImmersionLog.TimeStamp))">
+                                Timestamp
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                                Comment
+                            </th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                                Actions
+                            </th>
+                        </tr>
+                        </thead>
+                        <tbody class="divide-y divide-zinc-800">
+                        @foreach (var log in pagedLogs)
+                        {
+                            <tr class="hover:bg-zinc-800 transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap max-w-[200px]">
+                                    <a href="/library/@log.Content" class="text-purple-400 hover:text-purple-300 block truncate" title="@GetLibraryTitle(log.Content)">@GetLibraryTitle(log.Content)</a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-zinc-300">
+                                    @log.Amount
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-zinc-300">
+                                    @log.Duration.Hours<span class="text-xs">h</span> @log.Duration.Minutes<span class="text-xs">m</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-zinc-400 text-sm">
+                                    @log.TimeStamp.LocalDateTime.ToString("M/d h:mm tt")
+                                </td>
+                                <td class="px-6 py-4 text-zinc-400 text-sm max-w-[150px] truncate" title="@log.Comment">
+                                    @log.Comment
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <button @onclick="() => ShowDeleteConfirmation(log.Id)" class="text-red-400 hover:text-red-300">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="p-4 border-t border-zinc-800 flex items-center justify-between flex-shrink-0">
+                    <button @onclick="PrevPage" 
+                            disabled="@(currentPage == 1)"
+                            class="px-4 py-2 bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        Previous
+                    </button>
+                    <span class="text-zinc-400">Page @currentPage of @totalPages</span>
+                    <button @onclick="NextPage" 
+                            disabled="@(currentPage == totalPages)"
+                            class="px-4 py-2 bg-zinc-800 text-white border border-zinc-700 hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        Next
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@if (isDeleteModalOpen)
+{
+    <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" @onclick="CloseDeleteConfirmation">
+        <div class="bg-zinc-900 border border-zinc-800 p-8 shadow-2xl max-w-md w-full mx-4" @onclick:stopPropagation>
+            <h2 class="text-2xl font-bold text-white mb-4">Delete Log</h2>
+            <p class="text-zinc-300 mb-6">Are you sure you want to delete this log? This action cannot be undone.</p>
+            <div class="flex gap-3 justify-end">
+                <button @onclick="CloseDeleteConfirmation" 
+                        class="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 font-medium transition-colors">
+                    Cancel
+                </button>
+                <button @onclick="ConfirmDelete" 
+                        class="px-6 py-2 bg-red-900 hover:bg-red-800 text-red-200 border border-red-700 font-medium transition-colors">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<ImmersionLog> logs;
+    private TimeSpan totalDuration = new();
+    private Dictionary<string, string> libraryMap = new();
+    private List<ImmersionLog> pagedLogs = new();
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private int totalPages = 1;
+
+    private string sortColumn = nameof(ImmersionLog.TimeStamp);
+    private bool sortAscending = false;
+    private ApexChartOptions<ImmersionLog> options;
+    private ApexChartOptions<TypeData> pieOptions;
+    
+    private List<TypeData> typeDistribution = new();
+
+    private bool isDateRangeDropdownOpen = false;
+    private DateRangeType selectedDateRange = DateRangeType.CurrentMonth;
+    private DateTime customStartDate = DateTime.Now.Date;
+    private DateTime customEndDate = DateTime.Now.Date;
+    private DateTime filterStartDate;
+    private DateTime filterEndDate;
+    private int chartKey = 0;
+    private int currentStreak = 0;
+    private List<LibraryEntry> completedEntries = new();
+    
+    private bool isDeleteModalOpen = false;
+    private string logToDeleteId = string.Empty;
+
+    public enum DateRangeType
+    {
+        CurrentMonth,
+        LastMonth,
+        CurrentYear,
+        LastYear,
+        Custom
+    }
+
+    public class TypeData
+    {
+        public string TypeName { get; set; }
+        public long Minutes { get; set; }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        options = new ApexChartOptions<ImmersionLog>
+            {
+                Chart = new Chart
+                {
+                    Stacked = true,
+                    Zoom = new Zoom
+                    {
+                        Enabled = false
+                    },
+                    Toolbar = new Toolbar
+                    {
+                        Show = false
+                    },
+                    Background = "#18181b"
+                },
+                Theme = new Theme
+                {
+                    Mode = Mode.Dark,
+                    Palette = PaletteType.Palette2
+                },
+                Xaxis = new XAxis
+                {
+                    Labels = new XAxisLabels
+                    {
+                        Style = new AxisLabelStyle
+                        {
+                            Colors = "#a1a1aa"
+                        }
+                    }
+                },
+                Yaxis = new List<YAxis>
+                {
+                    new YAxis
+                    {
+                        Labels = new YAxisLabels
+                        {
+                            Style = new AxisLabelStyle
+                            {
+                                Colors = "#a1a1aa"
+                            }
+                        }
+                    }
+                },
+                Legend = new Legend
+                {
+                    Labels = new LegendLabels
+                    {
+                        Colors = "#e4e4e7"
+                    }
+                }
+            };
+
+        pieOptions = new ApexChartOptions<TypeData>
+            {
+                Chart = new Chart
+                {
+                    Toolbar = new Toolbar
+                    {
+                        Show = false
+                    },
+                    Background = "#18181b",
+                    Height = 200
+                },
+                Theme = new Theme
+                {
+                    Mode = Mode.Dark,
+                    Palette = PaletteType.Palette2
+                },
+                Legend = new Legend
+                {
+                    Show = false
+                },
+                PlotOptions = new PlotOptions
+                {
+                    Pie = new PlotOptionsPie()
+                    {
+                        Donut = new PlotOptionsDonut()
+                        {
+                            Size = "70%"
+                        }
+                    }
+                }
+            };
+
+        await InvokeAsync(() =>
+        {
+            libraryMap = RealmDbContext.GetLibraryEntries()
+                            .ToDictionary(e => e.Id, e => e.Title);
+
+            SetDateRangeFromType(DateRangeType.CurrentMonth);
+            LoadData();
+        });
+    }
+
+    private void ToggleDateRangeDropdown()
+    {
+        isDateRangeDropdownOpen = !isDateRangeDropdownOpen;
+    }
+
+    private string GetDateRangeLabel()
+    {
+        return selectedDateRange switch
+        {
+            DateRangeType.CurrentMonth => DateTime.Now.ToString("MMMM yyyy"),
+            DateRangeType.LastMonth => DateTime.Now.AddMonths(-1).ToString("MMMM yyyy"),
+            DateRangeType.CurrentYear => DateTime.Now.ToString("yyyy"),
+            DateRangeType.LastYear => DateTime.Now.AddYears(-1).ToString("yyyy"),
+            DateRangeType.Custom => $"{filterStartDate:MM/dd/yy} - {filterEndDate:MM/dd/yy}",
+            _ => DateTime.Now.ToString("MMMM yyyy")
+        };
+    }
+
+    private void SelectDateRange(DateRangeType rangeType)
+    {
+        selectedDateRange = rangeType;
+        SetDateRangeFromType(rangeType);
+        LoadData();
+        isDateRangeDropdownOpen = false;
+    }
+
+    private void SetDateRangeFromType(DateRangeType rangeType)
+    {
+        switch (rangeType)
+        {
+            case DateRangeType.CurrentMonth:
+                filterStartDate = new DateTime(DateTime.Now.Year, DateTime.Now.Month, 1);
+                filterEndDate = filterStartDate.AddMonths(1).AddDays(-1);
+                break;
+            case DateRangeType.LastMonth:
+                var lastMonth = DateTime.Now.AddMonths(-1);
+                filterStartDate = new DateTime(lastMonth.Year, lastMonth.Month, 1);
+                filterEndDate = filterStartDate.AddMonths(1).AddDays(-1);
+                break;
+            case DateRangeType.CurrentYear:
+                filterStartDate = new DateTime(DateTime.Now.Year, 1, 1);
+                filterEndDate = new DateTime(DateTime.Now.Year, 12, 31);
+                break;
+            case DateRangeType.LastYear:
+                var lastYear = DateTime.Now.Year - 1;
+                filterStartDate = new DateTime(lastYear, 1, 1);
+                filterEndDate = new DateTime(lastYear, 12, 31);
+                break;
+        }
+    }
+
+    private void ApplyCustomDateRange()
+    {
+        if (customStartDate > customEndDate)
+        {
+            return;
+        }
+        
+        selectedDateRange = DateRangeType.Custom;
+        filterStartDate = customStartDate;
+        filterEndDate = customEndDate;
+        LoadData();
+        isDateRangeDropdownOpen = false;
+    }
+
+    private void LoadData()
+    {
+        logs = RealmDbContext.GetImmersionLogs()
+            .ToList()
+            .Where(_ => _.TimeStamp.LocalDateTime.Date >= filterStartDate && _.TimeStamp.LocalDateTime.Date <= filterEndDate)
+            .ToList();
+
+        totalDuration = new TimeSpan(ticks: logs.Sum(_ => _.Duration.Ticks));
+        
+        LoadCompletedEntries();
+        CalculateStreak();
+        PrepareTypeDistribution();
+        ApplySorting();
+        ApplyPagination();
+        
+        chartKey++;
+    }
+
+    private void LoadCompletedEntries()
+    {
+        var allEntries = RealmDbContext.GetLibraryEntries().ToList();
+        
+        completedEntries = allEntries
+            .Where(e => e.Completed && 
+                        e.CompletedAt != DateTimeOffset.MinValue &&
+                        e.CompletedAt.LocalDateTime.Date >= filterStartDate && 
+                        e.CompletedAt.LocalDateTime.Date <= filterEndDate)
+            .OrderByDescending(e => e.CompletedAt)
+            .ToList();
+    }
+
+    private void CalculateStreak()
+    {
+        var allLogs = RealmDbContext.GetImmersionLogs()
+            .ToList()
+            .OrderByDescending(l => l.TimeStamp.LocalDateTime.Date)
+            .ToList();
+
+        if (!allLogs.Any())
+        {
+            currentStreak = 0;
+            return;
+        }
+
+        var uniqueDates = allLogs
+            .Select(l => l.TimeStamp.LocalDateTime.Date)
+            .Distinct()
+            .OrderByDescending(d => d)
+            .ToList();
+
+        if (!uniqueDates.Any())
+        {
+            currentStreak = 0;
+            return;
+        }
+
+        var today = DateTime.Now.Date;
+        var mostRecentLog = uniqueDates.First();
+
+        if ((today - mostRecentLog).Days > 1)
+        {
+            currentStreak = 0;
+            return;
+        }
+
+        int streak = 0;
+        DateTime currentDate = mostRecentLog;
+
+        foreach (var logDate in uniqueDates)
+        {
+            if (logDate == currentDate)
+            {
+                streak++;
+                currentDate = currentDate.AddDays(-1);
+            }
+            else if ((currentDate - logDate).Days == 1)
+            {
+                streak++;
+                currentDate = logDate.AddDays(-1);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        currentStreak = streak;
+    }
+
+    private void PrepareTypeDistribution()
+    {
+        typeDistribution = Enum.GetValues(typeof(ImmersionType))
+            .Cast<ImmersionType>()
+            .Select(type => new TypeData
+            {
+                TypeName = type.ToString(),
+                Minutes = (long)logs.Where(_ => _.Type == type).Sum(e => e.Duration.TotalMinutes)
+            })
+            .Where(t => t.Minutes > 0)
+            .ToList();
+    }
+
+    private List<ImmersionLog> GetAllLogsForYear()
+    {
+        return RealmDbContext.GetImmersionLogs()
+            .ToList()
+            .Where(_ => _.TimeStamp.LocalDateTime.Year == DateTime.Now.Year)
+            .ToList();
+    }
+
+    private string GetLibraryTitle(string libraryId)
+    {
+        return libraryMap.TryGetValue(libraryId, out var title) ? title : "(Unknown)";
+    }
+
+    private void SortBy(string column)
+    {
+        if (sortColumn == column)
+            sortAscending = !sortAscending;
+        else
+        {
+            sortColumn = column;
+            sortAscending = true;
+        }
+
+        ApplySorting();
+        currentPage = 1;
+        ApplyPagination();
+    }
+
+    private void ApplySorting()
+    {
+        logs = sortColumn switch
+        {
+            nameof(ImmersionLog.Content) => sortAscending ? logs.OrderBy(l => GetLibraryTitle(l.Content)).ToList() : logs.OrderByDescending(l => GetLibraryTitle(l.Content)).ToList(),
+            nameof(ImmersionLog.Amount) => sortAscending ? logs.OrderBy(l => l.Amount).ToList() : logs.OrderByDescending(l => l.Amount).ToList(),
+            nameof(ImmersionLog.Duration) => sortAscending ? logs.OrderBy(l => l.Duration).ToList() : logs.OrderByDescending(l => l.Duration).ToList(),
+            nameof(ImmersionLog.TimeStamp) => sortAscending ? logs.OrderBy(l => l.TimeStamp).ToList() : logs.OrderByDescending(l => l.TimeStamp).ToList(),
+            _ => logs
+        };
+    }
+
+    private void ApplyPagination()
+    {
+        totalPages = (int)Math.Ceiling((double)logs.Count / pageSize);
+        pagedLogs = logs.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+    }
+
+    private void NextPage()
+    {
+        if (currentPage < totalPages)
+        {
+            currentPage++;
+            ApplyPagination();
+        }
+    }
+
+    private void PrevPage()
+    {
+        if (currentPage > 1)
+        {
+            currentPage--;
+            ApplyPagination();
+        }
+    }
+
+    private void ShowDeleteConfirmation(string id)
+    {
+        logToDeleteId = id;
+        isDeleteModalOpen = true;
+    }
+
+    private void CloseDeleteConfirmation()
+    {
+        isDeleteModalOpen = false;
+        logToDeleteId = string.Empty;
+    }
+
+    private void ConfirmDelete()
+    {
+        if (!string.IsNullOrEmpty(logToDeleteId))
+        {
+            DeleteLog(logToDeleteId);
+        }
+        CloseDeleteConfirmation();
+    }
+
+    private void DeleteLog(string id)
+    {
+        // Find the log in your materialized list
+        var log = logs.FirstOrDefault(l => l.Id == id);
+        if (log == null)
+            return;
+
+        // Remove from Realm
+        RealmDbContext.RemoveImmersionLog(log);
+
+        // Remove from local lists
+        logs.Remove(log);
+
+        // Recalculate total duration
+        totalDuration = new TimeSpan(ticks: logs.Sum(_ => _.Duration.Ticks));
+
+        // Re-apply pagination so pagedLogs updates correctly
+        ApplyPagination();
+
+        // Notify Blazor to update UI
+        InvokeAsync(StateHasChanged);
+
+        // Reload
+        JS.InvokeVoidAsync("location.reload");
+    }
+}

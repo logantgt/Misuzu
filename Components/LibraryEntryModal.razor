@@ -1,0 +1,114 @@
+@using Misuzu.Database.Models
+@inject Realms.Realm Realm
+
+@if (IsOpen)
+{
+    <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4" @onclick="Close">
+        <div class="bg-zinc-900 border border-zinc-800 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" @onclick:stopPropagation>
+            <div class="p-6 border-b border-zinc-800 flex items-center justify-between">
+                <h2 class="text-2xl font-bold text-white">@(IsEditMode ? "Edit Library Entry" : "Add Library Entry")</h2>
+                <button @onclick="Close" class="text-zinc-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <EditForm Model="Entry" FormName="@($"entryForm{Entry?.Id}")" OnValidSubmit="HandleSubmit">
+                    <DataAnnotationsValidator />
+                    <ValidationSummary class="text-red-400 mb-4" />
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-zinc-300 mb-2">Title</label>
+                            <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.Title" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-zinc-300 mb-2">Description</label>
+                            <InputTextArea class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500 min-h-[100px]" @bind-Value="Entry.Description" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-zinc-300 mb-2">Type</label>
+                            <InputSelect class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.Type">
+                                @foreach (var type in Enum.GetValues<ImmersionType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-zinc-300 mb-2">Provider URL</label>
+                            <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.ProviderUrl" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-zinc-300 mb-2">Cover Image Filename</label>
+                            <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.CoverImage" />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-zinc-300 mb-2">Banner Image Filename</label>
+                            <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.BannerImage" />
+                        </div>
+
+                        <div class="flex gap-3 pt-4">
+                            <button type="submit" class="flex-1 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors">
+                                Save Entry
+                            </button>
+                            <button type="button" @onclick="Close" class="px-6 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public LibraryEntry Entry { get; set; } = new();
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public bool IsEditMode { get; set; }
+    
+    private void Close()
+    {
+        OnClose.InvokeAsync();
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (IsEditMode)
+        {
+            var existingEntry = Realm.All<LibraryEntry>().FirstOrDefault(e => e.Id == Entry.Id);
+            if (existingEntry != null)
+            {
+                Realm.Write(() =>
+                {
+                    existingEntry.Title = Entry.Title;
+                    existingEntry.Description = Entry.Description;
+                    existingEntry.Type = Entry.Type;
+                    existingEntry.ProviderUrl = Entry.ProviderUrl;
+                    existingEntry.CoverImage = Entry.CoverImage;
+                    existingEntry.BannerImage = Entry.BannerImage;
+                });
+            }
+        }
+        else
+        {
+            Realm.Write(() =>
+            {
+                Realm.Add(Entry);
+            });
+        }
+        
+        await OnSave.InvokeAsync();
+        Close();
+    }
+}

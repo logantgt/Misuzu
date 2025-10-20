@@ -1,0 +1,191 @@
+@page "/settings"
+@using Misuzu.Services
+@using System.Text.Json
+@inject SettingsService SettingsService
+@rendermode InteractiveServer
+
+<PageTitle>Settings - Misuzu</PageTitle>
+
+<div class="space-y-6">
+    <div>
+        <h1 class="text-3xl font-bold text-white">Settings</h1>
+        <p class="text-zinc-400 mt-2">Manage integrations and webhooks</p>
+    </div>
+
+    <div class="bg-zinc-900 border border-zinc-800 shadow-lg">
+        <div class="p-6 border-b border-zinc-800">
+            <h2 class="text-xl font-bold text-white">Webhooks</h2>
+            <div class="text-sm text-zinc-400 mt-2 space-y-2">
+                <p>Manage webhook URLs and their JSON payloads. These will execute whenever an immersion log is added or removed.</p>
+                <p>Form bodies are JSON templates written in the Liquid template language.</p>
+                
+                <div class="mt-3">
+                    <button @onclick="ToggleTemplateValues" class="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors">
+                        <svg class="w-4 h-4 transition-transform @(showTemplateValues ? "rotate-90" : "")" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                        </svg>
+                        <span class="font-medium">Template Model</span>
+                    </button>
+                    
+                    @if (showTemplateValues)
+                    {
+                        <div class="mt-2 p-3 bg-zinc-800 border border-zinc-700 space-y-1">
+                            <code class="block text-xs">content_id = LibraryEntry.Id</code>
+                            <code class="block text-xs">content_type = LibraryEntry.Type.ToString()</code>
+                            <code class="block text-xs">content_title = LibraryEntry.Title</code>
+                            <code class="block text-xs">content_description = LibraryEntry.Description</code>
+                            <code class="block text-xs">content_provider_url = LibraryEntry.ProviderUrl</code>
+                            <code class="block text-xs">content_cover_image = LibraryEntry.CoverImage</code>
+                            <code class="block text-xs">content_banner_image = LibraryEntry.BannerImage</code>
+                            <code class="block text-xs">content_created_at = LibraryEntry.CreatedAt</code>
+                            <code class="block text-xs">content_completed = LibraryEntry.Completed</code>
+                            <code class="block text-xs">log_id = ImmersionLog.Id</code>
+                            <code class="block text-xs">log_amount = ImmersionLog.Amount</code>
+                            <code class="block text-xs">log_duration = ImmersionLog.Duration</code>
+                            <code class="block text-xs">log_timestamp = ImmersionLog.TimeStamp</code>
+                            <code class="block text-xs">log_content = ImmersionLog.Content</code>
+                            <code class="block text-xs">log_comment = ImmersionLog.Comment</code>
+                            <code class="block text-xs">meta_verb = verb</code>
+                            <code class="block text-xs">meta_unit = unit</code>
+                            <code class="block text-xs">meta_date = DateTime.Now.ToShortDateString()</code>
+                            <code class="block text-xs">meta_month = DateTime.Now.ToString("MMMM")</code>
+                            <code class="block text-xs">meta_streak = streak</code>
+                            <code class="block text-xs">meta_duration = $"{ImmersionLog.Duration.Hours}h {ImmersionLog.Duration.Minutes}m"</code>
+                            <code class="block text-xs">meta_thumbnail = $"thumbnail{Path.GetExtension(file)}</code>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <div class="p-6 border-b border-zinc-800 bg-zinc-800 bg-opacity-50">
+            <h3 class="text-lg font-semibold text-white mb-4">Add New Webhook</h3>
+            <input type="text" 
+                   class="px-4 py-2.5 bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-purple-500 w-full mb-2" 
+                   placeholder="Enter webhook URL" 
+                   @bind="entry.Url" />
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <InputSelect class="px-4 py-2.5 bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="entry.Trigger">
+                    @foreach (var type in Enum.GetValues<WebhookAction>())
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </InputSelect>
+
+                <InputSelect class="px-4 py-2.5 bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="entry.PayloadType">
+                    @foreach (var type in Enum.GetValues<WebhookPayloadType>())
+                    {
+                        <option value="@type">@type</option>
+                    }
+                </InputSelect>
+            </div>
+            <button class="mt-4 px-6 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-medium transition-colors" @onclick="AddWebhook">
+                Add Webhook
+            </button>
+        </div>
+
+        <div class="p-6">
+            @if (SettingsService.Settings.WebhookEntries.Any())
+            {
+                <div class="space-y-4">
+                    @foreach (var webhookEntry in SettingsService.Settings.WebhookEntries)
+                    {
+                        <div class="bg-zinc-800 border border-zinc-700 shadow-lg">
+                            <div class="p-4 border-b border-zinc-700 flex items-center justify-between">
+                                <div class="flex-1 min-w-0">
+                                    <h4 class="font-semibold text-white truncate">@webhookEntry.Url</h4>
+                                    <div class="flex gap-4 mt-2 text-sm text-zinc-400">
+                                        <span>Trigger: <span class="text-purple-400">@webhookEntry.Trigger</span></span>
+                                        <span>Type: <span class="text-purple-400">@webhookEntry.PayloadType</span></span>
+                                    </div>
+                                </div>
+                                <button class="px-4 py-2 bg-red-900 hover:bg-red-800 text-red-200 border border-red-700 transition-colors" 
+                                        @onclick="() => RemoveWebhook(webhookEntry)">
+                                    Remove
+                                </button>
+                            </div>
+                            
+                            <div class="p-4">
+                                <label class="block text-sm font-medium text-zinc-300 mb-2">JSON Payload Template</label>
+                                <textarea class="w-full px-4 py-2.5 bg-zinc-900 border border-zinc-700 text-white focus:outline-none focus:border-purple-500 font-mono text-sm min-h-[150px]" 
+                                          @bind="webhookEntry.JsonBody"></textarea>
+                                
+                                @if (jsonErrors.ContainsKey(webhookEntry))
+                                {
+                                    <div class="mt-2 p-3 bg-red-900 border border-red-700 text-red-200 text-sm">
+                                        <div class="flex items-start gap-2">
+                                            <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>@jsonErrors[webhookEntry]</span>
+                                        </div>
+                                    </div>
+                                }
+                                
+                                <button class="mt-3 px-6 py-2 bg-emerald-900 hover:bg-emerald-800 text-emerald-200 border border-emerald-700 transition-colors" 
+                                        @onclick="() => UpdateWebhook(webhookEntry)">
+                                    Save JSON
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-12">
+                    <svg class="w-16 h-16 text-zinc-700 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    <p class="text-zinc-500">No webhooks configured yet.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private WebhookEntry entry = new();
+    private bool showTemplateValues = false;
+
+    // Store per-entry JSON validation errors
+    private Dictionary<WebhookEntry, string> jsonErrors = new();
+
+    private void ToggleTemplateValues()
+    {
+        showTemplateValues = !showTemplateValues;
+    }
+
+    private void AddWebhook()
+    {
+        if (!string.IsNullOrWhiteSpace(entry.Url))
+        {
+            SettingsService.AddWebhook(entry);
+            entry = new();
+        }
+    }
+
+    private void RemoveWebhook(WebhookEntry entry)
+    {
+        SettingsService.RemoveWebhook(entry);
+        jsonErrors.Remove(entry);
+    }
+
+    private void UpdateWebhook(WebhookEntry entry)
+    {
+        try
+        {
+            // Validate JSON
+            using var doc = JsonDocument.Parse(entry.JsonBody);
+            SettingsService.UpdateWebhook(entry);
+
+            // Clear previous error if successful
+            jsonErrors.Remove(entry);
+        }
+        catch (JsonException ex)
+        {
+            // Store error to display to user
+            jsonErrors[entry] = $"Invalid JSON: {ex.Message}";
+        }
+    }
+}

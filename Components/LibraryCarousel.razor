@@ -1,0 +1,131 @@
+@using Misuzu.Database.Models
+@inject IJSRuntime JS
+@rendermode InteractiveServer
+
+<div class="relative">
+    @if (isGridView)
+    {
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 py-2">
+            @foreach (var entry in Entries)
+            {
+                var isSelected = (!string.IsNullOrEmpty(SelectedEntryId) && SelectedEntryId == entry.Id) || 
+                                 (!string.IsNullOrEmpty(selectedId) && selectedId == entry.Id);
+                <div class="@(Interactive ? "cursor-pointer" : "")">
+                    <LibraryEntryCard Entry="entry" 
+                                     DisableLink="@DisableCardLinks" 
+                                     IsSelected="@isSelected"
+                                     OnCardClick="@(async (e) => await HandleEntryClick(e.Id))" />
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="relative flex items-stretch">
+            <button @onclick="ScrollLeft" class="flex items-center justify-center w-6 mr-3 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-colors disabled:opacity-50 z-10" disabled="@(!canScrollLeft)">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                </svg>
+            </button>
+            
+            <div class="overflow-x-hidden flex-1" id="@carouselId" @ref="carouselRef" style="scroll-behavior: smooth;">
+                <div class="flex gap-4 py-2">
+                    @foreach (var entry in Entries)
+                    {
+                        var isSelected = (!string.IsNullOrEmpty(SelectedEntryId) && SelectedEntryId == entry.Id) || 
+                                         (!string.IsNullOrEmpty(selectedId) && selectedId == entry.Id);
+                        <div class="flex-shrink-0 w-48 @(Interactive ? "cursor-pointer" : "")">
+                            <LibraryEntryCard Entry="entry" 
+                                             DisableLink="@DisableCardLinks" 
+                                             IsSelected="@isSelected"
+                                             OnCardClick="@(async (e) => await HandleEntryClick(e.Id))" />
+                        </div>
+                    }
+                </div>
+            </div>
+            
+            <button @onclick="ScrollRight" class="flex items-center justify-center w-6 ml-3 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 transition-colors disabled:opacity-50 z-10" disabled="@(!canScrollRight)">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                </svg>
+            </button>
+        </div>
+    }
+    <div class="flex items-center justify-end mt-2">
+        <button @onclick="ToggleViewMode" class="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition-colors text-sm flex items-center gap-2">
+            @if (isGridView)
+            {
+                <b>中</b>
+                <span>Carousel</span>
+            }
+            else
+            {
+                <b>田</b>
+                <span>Grid</span>
+            }
+        </button>
+    </div>
+</div>
+
+@code {
+    [Parameter] public List<LibraryEntry> Entries { get; set; } = new();
+    [Parameter] public string? SelectedEntryId { get; set; }
+    [Parameter] public EventCallback<string> OnEntrySelected { get; set; }
+    [Parameter] public bool Interactive { get; set; } = true;
+    [Parameter] public bool DisableCardLinks { get; set; } = false;
+
+    private ElementReference carouselRef;
+    private bool canScrollLeft = false;
+    private bool canScrollRight = true;
+    private string carouselId = $"library-carousel-{Guid.NewGuid():N}";
+    private string? selectedId = null;
+    private bool isGridView = false;
+
+    private void ToggleViewMode()
+    {
+        isGridView = !isGridView;
+    }
+
+    private async Task HandleEntryClick(string entryId)
+    {
+        if (Interactive)
+        {
+            selectedId = entryId;
+            await OnEntrySelected.InvokeAsync(entryId);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ScrollLeft()
+    {
+        await JS.InvokeVoidAsync("eval", $"document.getElementById('{carouselId}').scrollBy({{ left: -400, behavior: 'smooth' }})");
+        await Task.Delay(300);
+        await UpdateScrollButtons();
+    }
+
+    private async Task ScrollRight()
+    {
+        await JS.InvokeVoidAsync("eval", $"document.getElementById('{carouselId}').scrollBy({{ left: 400, behavior: 'smooth' }})");
+        await Task.Delay(300);
+        await UpdateScrollButtons();
+    }
+
+    private async Task UpdateScrollButtons()
+    {
+        var scrollLeft = await JS.InvokeAsync<double>("eval", $"document.getElementById('{carouselId}')?.scrollLeft || 0");
+        var scrollWidth = await JS.InvokeAsync<double>("eval", $"document.getElementById('{carouselId}')?.scrollWidth || 0");
+        var clientWidth = await JS.InvokeAsync<double>("eval", $"document.getElementById('{carouselId}')?.clientWidth || 0");
+        
+        canScrollLeft = scrollLeft > 0;
+        canScrollRight = scrollLeft < (scrollWidth - clientWidth - 10);
+        StateHasChanged();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await UpdateScrollButtons();
+        }
+    }
+}
