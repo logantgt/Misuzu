@@ -32,5 +32,5 @@ jobs:
         # Artifact name
         name: Misuzu-Windows # optional, default is artifact
         # A file, directory or wildcard pattern that describes what to upload
-        path: C:\Users\runner\work\Misuzu\Misuzu\bin\Debug\net9.0\
+        path: D:\a\Misuzu\Misuzu\bin\Debug\net9.0\
         # The desired behavior if no files are found using the provided path.
