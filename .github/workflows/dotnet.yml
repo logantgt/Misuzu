@@ -32,5 +32,5 @@ jobs:
         # Artifact name
         name: Misuzu-Linux # optional, default is artifact
         # A file, directory or wildcard pattern that describes what to upload
-        path: ./publish
+        path: /home/runner/work/Misuzu/Misuzu/bin/Debug/net9.0/
         # The desired behavior if no files are found using the provided path.
