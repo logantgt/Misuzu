@@ -26,3 +26,11 @@ jobs:
       run: dotnet build --no-restore
     - name: Test
       run: dotnet test --no-build --verbosity normal
+    - name: Upload a Build Artifact
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        # Artifact name
+        name: Misuzu-Linux # optional, default is artifact
+        # A file, directory or wildcard pattern that describes what to upload
+        path: ./publish
+        # The desired behavior if no files are found using the provided path.
