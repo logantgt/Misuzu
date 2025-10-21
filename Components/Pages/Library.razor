@@ -39,7 +39,7 @@
 
     protected override void OnInitialized()
     {
-        entries = Realm.All<LibraryEntry>().ToList();
+        entries = Realm.All<LibraryEntry>().OrderBy(e => e.Title).ToList();
     }
 
     private void ShowAddModal()
@@ -54,6 +54,6 @@
 
     private void HandleSave()
     {
-        entries = Realm.All<LibraryEntry>().ToList();
+        entries = Realm.All<LibraryEntry>().OrderBy(e => e.Title).ToList();
     }
 }

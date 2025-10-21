@@ -13,6 +13,8 @@
     private LibraryEntry modalEntry = new();
     private bool isEditModalOpen = false;
     private bool isDeleteModalOpen = false;
+    private bool isCompleteModalOpen = false;
+    private DateTime customCompleteDate = DateTime.Now.Date;
     private int totalMinutes = 0;
     private int totalAmount = 0;
 
@@ -41,15 +43,57 @@
         }
     }
 
-    private void ToggleCompleted()
+    private void ShowCompleteModal()
+    {
+        customCompleteDate = DateTime.Now.Date;
+        isCompleteModalOpen = true;
+    }
+
+    private void CloseCompleteModal()
+    {
+        isCompleteModalOpen = false;
+    }
+
+    private void CompleteWithToday()
+    {
+        CompleteEntry(DateTimeOffset.Now);
+        CloseCompleteModal();
+    }
+
+    private void CompleteWithCustomDate()
+    {
+        CompleteEntry(new DateTimeOffset(customCompleteDate));
+        CloseCompleteModal();
+    }
+
+    private void CompleteEntry(DateTimeOffset completedAt)
     {
         var entry = Realm.All<LibraryEntry>().FirstOrDefault(e => e.Id == Id);
         if (entry != null)
         {
             Realm.Write(() =>
             {
-                entry.Completed = !entry.Completed;
-                entry.CompletedAt = entry.Completed ? DateTimeOffset.Now : DateTimeOffset.MinValue;
+                entry.Completed = true;
+                entry.CompletedAt = completedAt;
+            });
+
+            if (entrySnapshot != null)
+            {
+                entrySnapshot.Completed = entry.Completed;
+                entrySnapshot.CompletedAt = entry.CompletedAt;
+            }
+        }
+    }
+
+    private void Uncomplete()
+    {
+        var entry = Realm.All<LibraryEntry>().FirstOrDefault(e => e.Id == Id);
+        if (entry != null)
+        {
+            Realm.Write(() =>
+            {
+                entry.Completed = false;
+                entry.CompletedAt = DateTimeOffset.MinValue;
             });
 
             if (entrySnapshot != null)
@@ -186,7 +230,7 @@ else
 
                     @if (!entrySnapshot.Completed)
                     {
-                        <button @onclick="ToggleCompleted" 
+                        <button @onclick="ShowCompleteModal" 
                                 class="px-6 py-3 bg-emerald-900 hover:bg-emerald-800 text-emerald-200 border border-emerald-700 font-medium transition-colors flex items-center gap-2 shadow-lg">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
@@ -196,7 +240,7 @@ else
                     }
                     else
                     {
-                        <button @onclick="ToggleCompleted" 
+                        <button @onclick="Uncomplete" 
                                 class="px-6 py-3 bg-yellow-900 hover:bg-yellow-800 text-yellow-200 border border-yellow-700 font-medium transition-colors flex items-center gap-2 shadow-lg">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -296,6 +340,44 @@ else
                        OnClose="CloseEditModal" 
                        OnSave="HandleSave"
                        IsEditMode="true"/>
+
+    @if (isCompleteModalOpen)
+    {
+        <div class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50" @onclick="CloseCompleteModal">
+            <div class="bg-zinc-900 border border-zinc-800 p-8 shadow-2xl max-w-md w-full mx-4" @onclick:stopPropagation>
+                <h2 class="text-2xl font-bold text-white mb-4">Mark as Complete</h2>
+                <p class="text-zinc-300 mb-6">Choose when you completed this entry:</p>
+                
+                <div class="space-y-4 mb-6">
+                    <button @onclick="CompleteWithToday" 
+                            class="w-full px-6 py-3 bg-emerald-900 hover:bg-emerald-800 text-emerald-200 border border-emerald-700 font-medium transition-colors flex items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Complete Today
+                    </button>
+
+                    <div class="border-t border-zinc-800 pt-4">
+                        <label class="text-sm text-zinc-400 mb-2 block">Custom Date</label>
+                        <input type="date" 
+                               @bind="customCompleteDate" 
+                               class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500 mb-3" />
+                        <button @onclick="CompleteWithCustomDate" 
+                                class="w-full px-6 py-2 bg-purple-900 hover:bg-purple-800 text-purple-200 border border-purple-700 font-medium transition-colors">
+                            Complete on @customCompleteDate.ToString("MM/dd/yyyy")
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex gap-3 justify-end">
+                    <button @onclick="CloseCompleteModal" 
+                            class="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700 font-medium transition-colors">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
 
     @if (isDeleteModalOpen)
     {

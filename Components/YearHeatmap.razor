@@ -128,15 +128,24 @@
 
     private void PrepareHeatmapData()
     {
+        if (!Logs.Any())
+        {
+            heatmapData = new List<HeatmapDataPoint>();
+            monthLabels = new List<MonthLabel>();
+            return;
+        }
+
+        var yearToShow = Logs.First().TimeStamp.LocalDateTime.Year;
+        
         var allYearLogs = Logs
-            .Where(_ => _.TimeStamp.LocalDateTime.Year == DateTime.Now.Year)
+            .Where(_ => _.TimeStamp.LocalDateTime.Year == yearToShow)
             .ToList();
 
         var dailyMinutes = allYearLogs
             .GroupBy(log => log.TimeStamp.LocalDateTime.Date)
             .ToDictionary(g => g.Key, g => (long)g.Sum(l => l.Duration.TotalMinutes));
 
-        var startOfYear = new DateTime(DateTime.Now.Year, 1, 1);
+        var startOfYear = new DateTime(yearToShow, 1, 1);
         var firstDayOfWeek = (int)startOfYear.DayOfWeek;
 
         heatmapData = new List<HeatmapDataPoint>();

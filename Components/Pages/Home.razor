@@ -70,7 +70,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-purple-200 text-sm font-medium">Total Time</p>
-                        <p class="text-3xl font-bold text-white mt-2">@Math.Floor(totalDuration.TotalHours)h @totalDuration.Minutes<span class="text-xl">m</span></p>
+                        <p class="text-3xl font-bold text-white mt-2">@Math.Floor(totalDuration.TotalHours)<span class="text-xl">h</span> @totalDuration.Minutes<span class="text-xl">m</span></p>
                     </div>
                     <div class="bg-purple-700 p-3">
                         <svg class="w-8 h-8 text-purple-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,7 +170,7 @@
                                          Items="logs"
                                          Name="@type.ToString()"
                                          SeriesType="SeriesType.Bar"
-                                         XValue="@(e => e.TimeStamp.LocalDateTime.Date)"
+                                         XValue="@(GetXValueForLog)"
                                          YAggregate="@(e => e.Where(x => x.Type == type).Sum(x => (long)x.Duration.TotalMinutes))">
                         </ApexPointSeries>
                     }
@@ -515,6 +515,20 @@
         isDateRangeDropdownOpen = false;
     }
 
+    private object GetXValueForLog(ImmersionLog log)
+    {
+        var dateRange = (filterEndDate - filterStartDate).Days;
+        
+        if (dateRange > 90)
+        {
+            return new DateTime(log.TimeStamp.LocalDateTime.Year, log.TimeStamp.LocalDateTime.Month, 1);
+        }
+        else
+        {
+            return log.TimeStamp.LocalDateTime.Date;
+        }
+    }
+
     private void LoadData()
     {
         logs = RealmDbContext.GetImmersionLogs()
@@ -619,10 +633,25 @@
 
     private List<ImmersionLog> GetAllLogsForYear()
     {
+        var yearToShow = GetYearWithMostDays();
+        
         return RealmDbContext.GetImmersionLogs()
             .ToList()
-            .Where(_ => _.TimeStamp.LocalDateTime.Year == DateTime.Now.Year)
+            .Where(_ => _.TimeStamp.LocalDateTime.Year == yearToShow)
             .ToList();
+    }
+
+    private int GetYearWithMostDays()
+    {
+        if (filterStartDate.Year == filterEndDate.Year)
+        {
+            return filterStartDate.Year;
+        }
+
+        var daysInStartYear = (new DateTime(filterStartDate.Year, 12, 31) - filterStartDate).Days + 1;
+        var daysInEndYear = (filterEndDate - new DateTime(filterEndDate.Year, 1, 1)).Days + 1;
+
+        return daysInStartYear >= daysInEndYear ? filterStartDate.Year : filterEndDate.Year;
     }
 
     private string GetLibraryTitle(string libraryId)
