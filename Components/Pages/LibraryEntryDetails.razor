@@ -17,6 +17,7 @@
     private DateTime customCompleteDate = DateTime.Now.Date;
     private int totalMinutes = 0;
     private int totalAmount = 0;
+    private DateTimeOffset? mostRecentLogDate = null;
 
     protected override void OnInitialized()
     {
@@ -40,6 +41,11 @@
             var logs = Realm.All<ImmersionLog>().Where(log => log.Content == Id).ToList();
             totalMinutes = (int)logs.Sum(log => log.Duration.TotalMinutes);
             totalAmount = logs.Sum(log => log.Amount);
+            
+            if (logs.Any())
+            {
+                mostRecentLogDate = logs.OrderByDescending(log => log.TimeStamp).First().TimeStamp;
+            }
         }
     }
 
@@ -328,6 +334,13 @@ else
                                 <span class="text-zinc-500">Total Amount</span>
                                 <span class="text-white font-semibold">@totalAmount.ToString("N0")</span>
                             </div>
+                            @if (mostRecentLogDate.HasValue)
+                            {
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-zinc-500">Last Log</span>
+                                    <span class="text-white font-semibold">@mostRecentLogDate.Value.LocalDateTime.ToString("MM/dd/yyyy")</span>
+                                </div>
+                            }
                         </div>
                     </div>
                 </div>

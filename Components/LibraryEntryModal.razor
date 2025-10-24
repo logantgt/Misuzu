@@ -1,5 +1,7 @@
 @using Misuzu.Database.Models
+@using Microsoft.JSInterop
 @inject Realms.Realm Realm
+@inject IJSRuntime JS
 
 @if (IsOpen)
 {
@@ -45,14 +47,50 @@
                             <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.ProviderUrl" />
                         </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-zinc-300 mb-2">Cover Image Filename</label>
-                            <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.CoverImage" />
-                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-zinc-300 mb-2">Cover Image</label>
+                                <div id="cover-dropzone" class="relative border-2 border-dashed @(isCoverDragging ? "border-purple-500 bg-purple-900/20" : "border-zinc-700") hover:border-purple-500 transition-colors bg-zinc-800 aspect-[2/3] flex items-center justify-center cursor-pointer">
+                                    
+                                    <InputFile @ref="coverInputFile" id="cover-upload" OnChange="HandleCoverFileSelected" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                                    
+                                    @if (!string.IsNullOrEmpty(coverImagePreview))
+                                    {
+                                        <img src="@coverImagePreview" alt="Cover preview" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                                    }
+                                    else
+                                    {
+                                        <div class="text-center p-4 pointer-events-none">
+                                            <svg class="w-12 h-12 mx-auto text-zinc-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            <p class="text-zinc-500 text-sm">Drop or click to select</p>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
 
-                        <div>
-                            <label class="block text-sm font-medium text-zinc-300 mb-2">Banner Image Filename</label>
-                            <InputText class="w-full px-4 py-2 bg-zinc-800 border border-zinc-700 text-white focus:outline-none focus:border-purple-500" @bind-Value="Entry.BannerImage" />
+                            <div>
+                                <label class="block text-sm font-medium text-zinc-300 mb-2">Banner Image</label>
+                                <div id="banner-dropzone" class="relative border-2 border-dashed @(isBannerDragging ? "border-purple-500 bg-purple-900/20" : "border-zinc-700") hover:border-purple-500 transition-colors bg-zinc-800 aspect-[2/3] flex items-center justify-center cursor-pointer">
+                                    
+                                    <InputFile @ref="bannerInputFile" id="banner-upload" OnChange="HandleBannerFileSelected" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                                    
+                                    @if (!string.IsNullOrEmpty(bannerImagePreview))
+                                    {
+                                        <img src="@bannerImagePreview" alt="Banner preview" class="absolute inset-0 w-full h-full object-cover pointer-events-none" />
+                                    }
+                                    else
+                                    {
+                                        <div class="text-center p-4 pointer-events-none">
+                                            <svg class="w-12 h-12 mx-auto text-zinc-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                            </svg>
+                                            <p class="text-zinc-500 text-sm">Drop or click to select</p>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
                         </div>
 
                         <div class="flex gap-3 pt-4">
@@ -70,6 +108,8 @@
     </div>
 }
 
+@implements IDisposable
+
 @code {
     [Parameter] public bool IsOpen { get; set; }
     [Parameter] public LibraryEntry Entry { get; set; } = new();
@@ -77,38 +117,303 @@
     [Parameter] public EventCallback OnSave { get; set; }
     [Parameter] public bool IsEditMode { get; set; }
     
-    private void Close()
+    private string coverImagePreview = "";
+    private string bannerImagePreview = "";
+    private IBrowserFile? coverImageFile;
+    private IBrowserFile? bannerImageFile;
+    private bool isCoverDragging = false;
+    private bool isBannerDragging = false;
+    private InputFile? coverInputFile;
+    private InputFile? bannerInputFile;
+    private DotNetObjectReference<LibraryEntryModal>? dotNetRef;
+
+    protected override void OnParametersSet()
     {
-        OnClose.InvokeAsync();
+        if (IsOpen)
+        {
+            LoadExistingImages();
+        }
     }
 
-    private async Task HandleSubmit()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (IsEditMode)
+        if (firstRender && IsOpen)
         {
-            var existingEntry = Realm.All<LibraryEntry>().FirstOrDefault(e => e.Id == Entry.Id);
-            if (existingEntry != null)
-            {
-                Realm.Write(() =>
-                {
-                    existingEntry.Title = Entry.Title;
-                    existingEntry.Description = Entry.Description;
-                    existingEntry.Type = Entry.Type;
-                    existingEntry.ProviderUrl = Entry.ProviderUrl;
-                    existingEntry.CoverImage = Entry.CoverImage;
-                    existingEntry.BannerImage = Entry.BannerImage;
-                });
-            }
+            dotNetRef = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("eval", @"
+                window.setupImageDropZone = function(dropZoneId, inputId, dotNetRef, isCover) {
+                    const dropZone = document.getElementById(dropZoneId);
+                    const input = document.getElementById(inputId);
+                    
+                    if (!dropZone || !input) return;
+                    
+                    dropZone.addEventListener('dragenter', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dotNetRef.invokeMethodAsync(isCover ? 'OnCoverDragEnter' : 'OnBannerDragEnter');
+                    });
+                    
+                    dropZone.addEventListener('dragleave', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (e.target === dropZone) {
+                            dotNetRef.invokeMethodAsync(isCover ? 'OnCoverDragLeave' : 'OnBannerDragLeave');
+                        }
+                    });
+                    
+                    dropZone.addEventListener('dragover', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    });
+                    
+                    dropZone.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        dotNetRef.invokeMethodAsync(isCover ? 'OnCoverDragLeave' : 'OnBannerDragLeave');
+                        
+                        const files = e.dataTransfer.files;
+                        if (files.length > 0) {
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(files[0]);
+                            input.files = dataTransfer.files;
+                            
+                            const event = new Event('change', { bubbles: true });
+                            input.dispatchEvent(event);
+                        }
+                    });
+                };
+            ");
+            
+            await JS.InvokeVoidAsync("setupImageDropZone", "cover-dropzone", "cover-upload", dotNetRef, true);
+            await JS.InvokeVoidAsync("setupImageDropZone", "banner-dropzone", "banner-upload", dotNetRef, false);
+        }
+    }
+
+    [JSInvokable]
+    public void OnCoverDragEnter()
+    {
+        isCoverDragging = true;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnCoverDragLeave()
+    {
+        isCoverDragging = false;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnBannerDragEnter()
+    {
+        isBannerDragging = true;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public void OnBannerDragLeave()
+    {
+        isBannerDragging = false;
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        dotNetRef?.Dispose();
+    }
+
+    private void LoadExistingImages()
+    {
+        if (!string.IsNullOrEmpty(Entry.CoverImage))
+        {
+            coverImagePreview = $"/images/{Entry.CoverImage}";
         }
         else
         {
-            Realm.Write(() =>
-            {
-                Realm.Add(Entry);
-            });
+            coverImagePreview = "";
         }
-        
-        await OnSave.InvokeAsync();
-        Close();
+
+        if (!string.IsNullOrEmpty(Entry.BannerImage))
+        {
+            bannerImagePreview = $"/images/{Entry.BannerImage}";
+        }
+        else
+        {
+            bannerImagePreview = "";
+        }
+    }
+    
+    private void Close()
+    {
+        coverImagePreview = "";
+        bannerImagePreview = "";
+        coverImageFile = null;
+        bannerImageFile = null;
+        OnClose.InvokeAsync();
+    }
+
+    private async Task HandleCoverFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            coverImageFile = file;
+            await LoadImagePreview(file, true);
+        }
+    }
+
+    private async Task HandleBannerFileSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            bannerImageFile = file;
+            await LoadImagePreview(file, false);
+        }
+    }
+
+    private async Task LoadImagePreview(IBrowserFile file, bool isCover)
+    {
+        try
+        {
+            using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+            using var memoryStream = new MemoryStream();
+            await stream.CopyToAsync(memoryStream);
+            var buffer = memoryStream.ToArray();
+            var base64 = Convert.ToBase64String(buffer);
+            var dataUrl = $"data:{file.ContentType};base64,{base64}";
+            
+            if (isCover)
+            {
+                coverImagePreview = dataUrl;
+            }
+            else
+            {
+                bannerImagePreview = dataUrl;
+            }
+            
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading image preview: {ex.Message}");
+        }
+    }
+
+
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            var storeImagesPath = Path.Combine(Directory.GetCurrentDirectory(), "store", "images");
+            Directory.CreateDirectory(storeImagesPath);
+
+            if (coverImageFile != null)
+            {
+                var extension = Path.GetExtension(coverImageFile.Name);
+                if (string.IsNullOrEmpty(extension))
+                {
+                    extension = coverImageFile.ContentType switch
+                    {
+                        "image/jpeg" => ".jpg",
+                        "image/png" => ".png",
+                        "image/gif" => ".gif",
+                        "image/webp" => ".webp",
+                        _ => ".jpg"
+                    };
+                }
+                
+                var newCoverUUID = Guid.NewGuid().ToString();
+                var newCoverFilename = newCoverUUID + extension;
+                var coverPath = Path.Combine(storeImagesPath, newCoverFilename);
+                
+                if (!string.IsNullOrEmpty(Entry.CoverImage))
+                {
+                    var oldCoverPath = Path.Combine(storeImagesPath, Entry.CoverImage);
+                    if (File.Exists(oldCoverPath))
+                    {
+                        File.Delete(oldCoverPath);
+                    }
+                }
+                
+                using (var stream = coverImageFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
+                using (var fileStream = File.Create(coverPath))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+                
+                Entry.CoverImage = newCoverUUID;
+            }
+
+            if (bannerImageFile != null)
+            {
+                var extension = Path.GetExtension(bannerImageFile.Name);
+                if (string.IsNullOrEmpty(extension))
+                {
+                    extension = bannerImageFile.ContentType switch
+                    {
+                        "image/jpeg" => ".jpg",
+                        "image/png" => ".png",
+                        "image/gif" => ".gif",
+                        "image/webp" => ".webp",
+                        _ => ".jpg"
+                    };
+                }
+                
+                var newBannerUUID = Guid.NewGuid().ToString();
+                var newBannerFilename = newBannerUUID + extension;
+                var bannerPath = Path.Combine(storeImagesPath, newBannerFilename);
+                
+                if (!string.IsNullOrEmpty(Entry.BannerImage))
+                {
+                    var oldBannerPath = Path.Combine(storeImagesPath, Entry.BannerImage);
+                    if (File.Exists(oldBannerPath))
+                    {
+                        File.Delete(oldBannerPath);
+                    }
+                }
+                
+                using (var stream = bannerImageFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024))
+                using (var fileStream = File.Create(bannerPath))
+                {
+                    await stream.CopyToAsync(fileStream);
+                }
+                
+                Entry.BannerImage = newBannerUUID;
+            }
+
+            if (IsEditMode)
+            {
+                var existingEntry = Realm.All<LibraryEntry>().FirstOrDefault(e => e.Id == Entry.Id);
+                if (existingEntry != null)
+                {
+                    Realm.Write(() =>
+                    {
+                        existingEntry.Title = Entry.Title;
+                        existingEntry.Description = Entry.Description;
+                        existingEntry.Type = Entry.Type;
+                        existingEntry.ProviderUrl = Entry.ProviderUrl;
+                        existingEntry.CoverImage = Entry.CoverImage;
+                        existingEntry.BannerImage = Entry.BannerImage;
+                    });
+                }
+            }
+            else
+            {
+                Realm.Write(() =>
+                {
+                    Realm.Add(Entry);
+                });
+            }
+            
+            await OnSave.InvokeAsync();
+            Close();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error saving entry: {ex.Message}");
+            Console.WriteLine(ex.StackTrace);
+        }
     }
 }
