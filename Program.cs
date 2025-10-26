@@ -15,7 +15,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddScoped(_ =>
 {
-    var config = new RealmConfiguration(Path.Combine(Environment.CurrentDirectory, "/store/misuzu.realm"))
+    var config = new RealmConfiguration(Path.Combine(Environment.CurrentDirectory, "store/misuzu.realm"))
     {
         SchemaVersion = 3
     };
