@@ -8,9 +8,9 @@ public class SettingsService
 
     public AppSettings Settings { get; private set; } = new();
 
-    public SettingsService(IWebHostEnvironment env)
+    public SettingsService()
     {
-        _filePath = Path.Combine(env.ContentRootPath, FileName);
+        _filePath = Path.Combine(Environment.CurrentDirectory, $"store/{FileName}");
         Load();
     }
     public void Load()

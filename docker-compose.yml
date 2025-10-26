@@ -8,6 +8,8 @@ services:
     container_name: misuzu
     ports:
       - "8080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
     volumes:
       - misuzu_data:/app/store
     restart: unless-stopped
