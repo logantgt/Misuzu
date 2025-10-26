@@ -15,4 +15,4 @@ COPY --from=build /App/out .
 ENTRYPOINT ["dotnet", "Misuzu.dll"]
 
 # Expose port
-EXPOSE 7270
+EXPOSE 5000
