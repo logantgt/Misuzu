@@ -14,5 +14,8 @@ WORKDIR /App
 COPY --from=build /App/out .
 ENTRYPOINT ["dotnet", "Misuzu.dll"]
 
+# Volume
+VOLUME /App/store
+
 # Expose port
 EXPOSE 8080

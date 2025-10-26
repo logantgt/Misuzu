@@ -15,7 +15,7 @@ builder.Services.AddControllers();
 
 builder.Services.AddScoped(_ =>
 {
-    var config = new RealmConfiguration("misuzu.realm")
+    var config = new RealmConfiguration("./store/misuzu.realm")
     {
         SchemaVersion = 3
     };

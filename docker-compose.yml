@@ -1,0 +1,16 @@
+version: "3.9"
+
+services:
+  misuzu:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: misuzu
+    ports:
+      - "8080:8080"
+    volumes:
+      - misuzu_data:/app/store
+    restart: unless-stopped
+
+volumes:
+  misuzu_data:
