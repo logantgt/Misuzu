@@ -10,10 +10,24 @@
     <PackageReference Include="Blazor-ApexCharts" Version="6.0.2" />
     <PackageReference Include="Realm" Version="20.1.0" />
     <PackageReference Include="Scriban" Version="6.4.0" />
-    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+<Target Name="CopyWwwroot" AfterTargets="Build">
+  <ItemGroup>
+    <CopyItems Include="$(ProjectDir)wwwroot\**\*" />
+  </ItemGroup>
+  <Copy
+    SourceFiles="@(CopyItems)"
+    DestinationFolder="$(TargetDir)wwwroot\%(RecursiveDir)"
+    SkipUnchangedFiles="false"
+    OverwriteReadOnlyFiles="true"
+    Retries="3"
+    RetryDelayMilliseconds="300"
+  />
+</Target>
+
 </Project>
+
 
 
 
