@@ -24,6 +24,11 @@ jobs:
       run: dotnet restore
     - name: Build
       run: dotnet build --no-restore
+    - name: Copy Static Files
+      uses: nearform-actions/github-action-copy-files@v1
+      with:
+        source: 'D:\a\Misuzu\Misuzu\wwwroot\'
+        destination: 'D:\a\Misuzu\Misuzu\bin\Debug\net9.0\'
     - name: Test
       run: dotnet test --no-build --verbosity normal
     - name: Upload a Build Artifact
@@ -33,4 +38,3 @@ jobs:
         name: Misuzu-Windows # optional, default is artifact
         # A file, directory or wildcard pattern that describes what to upload
         path: D:\a\Misuzu\Misuzu\bin\Debug\net9.0\
-        # The desired behavior if no files are found using the provided path.
