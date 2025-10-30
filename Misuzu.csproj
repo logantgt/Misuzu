@@ -10,9 +10,10 @@
     <PackageReference Include="Blazor-ApexCharts" Version="6.0.2" />
     <PackageReference Include="Realm" Version="20.1.0" />
     <PackageReference Include="Scriban" Version="6.4.0" />
-    <Folder Include="wwwroot\[...]" />
+    <Content Include="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
+
 
 
