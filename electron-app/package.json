@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Misuzu Language Learning Tracker - Desktop Application",
   "main": "main.js",
+  "homepage": "https://github.com/logantgt/Misuzu",
   "scripts": {
     "start": "electron .",
     "build": "electron-builder",
@@ -16,7 +17,7 @@
     "blazor",
     "electron"
   ],
-  "author": "",
+  "author": "Logan Lowe <notmy@email.com> (http://example.com/)",
   "license": "MIT",
   "devDependencies": {
     "electron": "^28.0.0",
