@@ -66,7 +66,11 @@ function startServer() {
     console.log('Executable path:', executablePath);
     console.log('Working directory:', workingDir);
 
-    serverProcess = spawn(executablePath, [], {
+    // Set content root to executable directory so ASP.NET can find wwwroot
+    const executableDir = path.dirname(executablePath);
+    const args = ['--contentRoot', executableDir];
+
+    serverProcess = spawn(executablePath, args, {
       cwd: workingDir,
       env: {
         ...process.env,
