@@ -13,9 +13,11 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddControllers();
 
+Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, "store/"));
+
 builder.Services.AddScoped(_ =>
 {
-    var config = new RealmConfiguration(Path.Combine(Environment.CurrentDirectory, "store/misuzu.realm"))
+    var config = new RealmConfiguration(Path.Combine(Environment.CurrentDirectory, "store/"))
     {
         SchemaVersion = 3
     };
@@ -28,7 +30,6 @@ builder.Services.AddScoped<RealmDbContext>();
 builder.Services.AddScoped<WebhookService>();
 
 builder.Services.AddSingleton<SettingsService>();
-
 
 builder.Services.AddApexCharts();
 
