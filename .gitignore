@@ -134,3 +134,5 @@ _NCrunch*
 *.realm
 *.lock
 /store
+/.claude
+wwwroot/Misuzu.styles.css

@@ -15,7 +15,9 @@
 <Target Name="CopyWwwroot" AfterTargets="Build">
   <ItemGroup>
     <CopyItems Include="$(ProjectDir)wwwroot\**\*" />
+    <ScopedCssFiles Include="$(IntermediateOutputPath)scopedcss\bundle\*.css" />
   </ItemGroup>
+  <!-- Copy wwwroot files to build output -->
   <Copy
     SourceFiles="@(CopyItems)"
     DestinationFolder="$(TargetDir)wwwroot\%(RecursiveDir)"
@@ -23,6 +25,12 @@
     OverwriteReadOnlyFiles="true"
     Retries="3"
     RetryDelayMilliseconds="300"
+  />
+  <!-- Copy scoped CSS bundle to build output wwwroot -->
+  <Copy
+    SourceFiles="@(ScopedCssFiles)"
+    DestinationFolder="$(TargetDir)wwwroot"
+    SkipUnchangedFiles="true"
   />
 </Target>
 
