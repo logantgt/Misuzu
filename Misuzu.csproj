@@ -12,24 +12,29 @@
     <PackageReference Include="Scriban" Version="6.4.0" />
   </ItemGroup>
 
-<Target Name="CopyWwwroot" AfterTargets="Build">
+<Target Name="CopyWwwroot" AfterTargets="Build;Publish">
+  <PropertyGroup>
+    <!-- Use PublishDir if available (during publish), otherwise use TargetDir (during build) -->
+    <OutputDir Condition="'$(PublishDir)' != ''">$(PublishDir)</OutputDir>
+    <OutputDir Condition="'$(PublishDir)' == ''">$(TargetDir)</OutputDir>
+  </PropertyGroup>
   <ItemGroup>
     <CopyItems Include="$(ProjectDir)wwwroot\**\*" />
     <ScopedCssFiles Include="$(IntermediateOutputPath)scopedcss\bundle\*.css" />
   </ItemGroup>
-  <!-- Copy wwwroot files to build output -->
+  <!-- Copy wwwroot files to output -->
   <Copy
     SourceFiles="@(CopyItems)"
-    DestinationFolder="$(TargetDir)wwwroot\%(RecursiveDir)"
+    DestinationFolder="$(OutputDir)wwwroot\%(RecursiveDir)"
     SkipUnchangedFiles="false"
     OverwriteReadOnlyFiles="true"
     Retries="3"
     RetryDelayMilliseconds="300"
   />
-  <!-- Copy scoped CSS bundle to build output wwwroot -->
+  <!-- Copy scoped CSS bundle to output wwwroot -->
   <Copy
     SourceFiles="@(ScopedCssFiles)"
-    DestinationFolder="$(TargetDir)wwwroot"
+    DestinationFolder="$(OutputDir)wwwroot"
     SkipUnchangedFiles="true"
   />
 </Target>
