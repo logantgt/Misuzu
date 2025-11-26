@@ -58,7 +58,8 @@ function startServer() {
       }
 
       executablePath = path.join(process.resourcesPath, 'backend', runtime, exeName);
-      workingDir = path.join(process.resourcesPath, 'backend', runtime);
+      // Use user data directory for writable storage (works across all platforms)
+      workingDir = app.getPath('userData');
     }
 
     console.log('Starting ASP.NET server...');

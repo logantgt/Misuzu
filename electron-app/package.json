@@ -41,23 +41,14 @@
       }
     ],
     "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
+      "target": "AppImage",
       "category": "Education"
     },
     "win": {
-      "target": [
-        "nsis",
-        "portable"
-      ]
+      "target": "portable"
     },
     "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
+      "target": "dmg",
       "category": "public.app-category.education"
     }
   }
