@@ -13,11 +13,27 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddControllers();
 
-Directory.CreateDirectory(Path.Combine(Environment.CurrentDirectory, "store/"));
+var storePath = Path.Combine(Environment.CurrentDirectory, "store/");
+Directory.CreateDirectory(storePath);
+
+// Clean up stale Realm lock files (fixes "No such process" error on Windows)
+var lockFiles = Directory.GetFiles(storePath, "*.lock");
+var managementFiles = Directory.GetFiles(storePath, "*.management");
+foreach (var file in lockFiles.Concat(managementFiles))
+{
+    try
+    {
+        File.Delete(file);
+    }
+    catch
+    {
+        // Ignore errors - if we can't delete, Realm will handle it
+    }
+}
 
 builder.Services.AddScoped(_ =>
 {
-    var config = new RealmConfiguration(Path.Combine(Environment.CurrentDirectory, "store/"))
+    var config = new RealmConfiguration(storePath)
     {
         SchemaVersion = 3
     };
