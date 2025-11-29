@@ -9,31 +9,20 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+.AddInteractiveServerComponents();
 
 builder.Services.AddControllers();
 
-var storePath = Path.Combine(Environment.CurrentDirectory, "store/");
-Directory.CreateDirectory(storePath);
+var storeDir = Path.Combine(Environment.CurrentDirectory, "store");
+Directory.CreateDirectory(storeDir);
 
-// Clean up stale Realm lock files (fixes "No such process" error on Windows)
-var lockFiles = Directory.GetFiles(storePath, "*.lock");
-var managementFiles = Directory.GetFiles(storePath, "*.management");
-foreach (var file in lockFiles.Concat(managementFiles))
-{
-    try
-    {
-        File.Delete(file);
-    }
-    catch
-    {
-        // Ignore errors - if we can't delete, Realm will handle it
-    }
-}
-
+// Use an explicit file inside the store directory to avoid passing a directory path
+// to Realm. This makes lock/management file locations predictable and avoids
+// platform-specific path resolution issues.
+var realmFile = Path.Combine(storeDir, "misuzu.realm");
 builder.Services.AddScoped(_ =>
 {
-    var config = new RealmConfiguration(storePath)
+    var config = new RealmConfiguration(realmFile)
     {
         SchemaVersion = 3
     };
@@ -65,6 +54,6 @@ app.UseAntiforgery();
 app.MapControllers();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+.AddInteractiveServerRenderMode();
 
 app.Run();
