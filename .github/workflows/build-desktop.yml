@@ -90,13 +90,27 @@ jobs:
         path: electron-app/dist/*.dmg
         retention-days: 30
 
-    - name: Upload release assets (on tag)
-      if: startsWith(github.ref, 'refs/tags/')
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+        merge-multiple: true
+
+    - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          electron-app/dist/*.AppImage
-          electron-app/dist/*.exe
-          electron-app/dist/*.dmg
+          artifacts/*.AppImage
+          artifacts/*.exe
+          artifacts/*.dmg
+        draft: false
+        prerelease: false
+        generate_release_notes: true
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
